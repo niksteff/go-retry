@@ -3,11 +3,11 @@ package backoff
 import "time"
 
 type Backoff interface {
-	Backoff() (time.Duration, bool)
+	Backoff() time.Duration
 }
 
-type BackoffFunc func() (time.Duration, bool)
+type BackoffFunc func() time.Duration
 
-func (f BackoffFunc) Backoff() (time.Duration, bool) {
+func (f BackoffFunc) Backoff() time.Duration {
 	return f()
 }

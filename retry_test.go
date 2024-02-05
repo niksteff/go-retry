@@ -16,24 +16,27 @@ var (
 
 func TestRetry(t *testing.T) {
 	testData := []struct {
-		r   retry.Retry
-		b   backoff.Backoff
-		err error
+		r     retry.Retry
+		tries int
+		b     backoff.Backoff
+		err   error
 	}{
 		{
-			r:   retry.RetryableFunc(func() error { return nil }),
-			b:   backoff.BackoffFunc(func() (time.Duration, bool) { return 0, false }),
-			err: nil,
+			r:     retry.RetryableFunc(func() error { return nil }),
+			tries: 1,
+			b:     backoff.BackoffFunc(func() time.Duration { return 0 }),
+			err:   nil,
 		},
 		{
-			r:   retry.RetryableFunc(func() error { return ErrTest }),
-			b:   backoff.BackoffFunc(func() (time.Duration, bool) { return 100 * time.Millisecond, false }),
-			err: ErrTest,
+			r:     retry.RetryableFunc(func() error { return ErrTest }),
+			tries: 1,
+			b:     backoff.BackoffFunc(func() time.Duration { return 100 * time.Millisecond }),
+			err:   ErrTest,
 		},
 	}
 
 	for idx, d := range testData {
-		err := retry.Do(d.r, d.b)
+		err := retry.Do(d.r, d.tries, d.b)
 		if err != nil {
 			var rErr retry.RetryError
 			if !errors.As(err, &rErr) {
@@ -51,19 +54,19 @@ func TestRetryCounter(t *testing.T) {
 	var madeRetries int
 	b := func() backoff.BackoffFunc {
 
-		return func() (time.Duration, bool) {
+		return func() time.Duration {
 			madeRetries++
 			t.Logf("backoff %d", madeRetries)
 
 			if madeRetries < 3 {
-				return 100 * time.Millisecond, true
+				return 100 * time.Millisecond
 			}
 
-			return 0, false
+			return 0
 		}
 	}()
 
-	err := retry.Do(r, b)
+	err := retry.Do(r, expectedRetries, b)
 	if err != nil {
 		var rErr retry.RetryError
 		if !errors.As(err, &rErr) {

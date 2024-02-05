@@ -7,32 +7,31 @@ import (
 
 func TestLinearBackoff(t *testing.T) {
 	testData := []struct {
-		base            time.Duration
-		maxRetries      int
-		expectedRetries int
+		waitTime time.Duration
+		count    int
 	}{
-		{base: 100 * time.Millisecond, maxRetries: 0, expectedRetries: 0},
-		{base: 100 * time.Millisecond, maxRetries: 1, expectedRetries: 1},
-		{base: 100 * time.Millisecond, maxRetries: 10, expectedRetries: 10},
+		{waitTime: 100 * time.Millisecond, count: 0},
+		{waitTime: 100 * time.Millisecond, count: 1},
+		{waitTime: 100 * time.Millisecond, count: 10},
 	}
 
 	for idx, d := range testData {
-		t.Logf("test case %d", idx)
-		f := NewLinearBackoffFunc(d.base, d.maxRetries)
+		f := NewLinearBackoffFunc(d.waitTime)
 
 		var count int
 		for {
-			d, next := f()
-			if !next {
+			if count >= d.count {
 				break
 			}
 
-			t.Logf("retrying after %s", d)
-			count++
-		}
+			waitTime := f()
+			count += 1
+			if waitTime < d.waitTime {
+				t.Errorf("test %d: expected wait time %s, got %s", idx, d.waitTime, waitTime)
+				break
+			}
 
-		if count != d.expectedRetries {
-			t.Fatalf("expected %d retries, got %d", d.expectedRetries, count)
+			t.Logf("retrying after %s", waitTime)
 		}
 	}
 }

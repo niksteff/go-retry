@@ -6,11 +6,11 @@ import (
 )
 
 type Backoff interface {
-	Backoff() (time.Duration, bool)
+	Backoff() time.Duration
 }
 
 type RetryError struct {
-	Err error
+	Err error // TODO: error collection from each try?
 }
 
 func (e RetryError) Error() string {
@@ -27,15 +27,18 @@ func (f RetryableFunc) Try() error {
 	return f()
 }
 
-func Do(f Retry, fb Backoff) error {
+func Do(f Retry, tries int, fb Backoff) error {
 	for {
 		err := f.Try()
 		if err != nil {
-			d, next := fb.Backoff()
-			if !next {
+			// we tried, subtract one try
+			tries -= 1
+			if tries <= 0 {
+				// no tries left, return the last error
 				return RetryError{Err: err}
 			}
 
+			d := fb.Backoff()
 			time.Sleep(d)
 			continue
 		}

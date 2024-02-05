@@ -5,19 +5,14 @@ import (
 	"time"
 )
 
-func NewExponentialBackoffFunc(startPause time.Duration, maxPause time.Duration, retries int) BackoffFunc {
+func NewExponentialBackoffFunc(startPause time.Duration, maxPause time.Duration) BackoffFunc {
 	var retried int
 
 	jitter := func() time.Duration {
 		return time.Duration(rand.Intn(500)) * time.Millisecond
 	}
 
-	return func() (time.Duration, bool) {
-		// if we reached max retries, we return false to indicate we are done
-		if retried+1 > retries {
-			return maxPause, false
-		}
-
+	return func() time.Duration {
 		var current time.Duration
 		if retried == 0 {
 			current = startPause + jitter()
@@ -29,10 +24,10 @@ func NewExponentialBackoffFunc(startPause time.Duration, maxPause time.Duration,
 
 		if current >= maxPause {
 			retried++
-			return maxPause + jitter(), true
+			return maxPause + jitter()
 		}
 
 		retried++
-		return current, true
+		return current
 	}
 }
