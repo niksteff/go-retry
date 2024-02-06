@@ -46,7 +46,7 @@ func Do(ctx context.Context, f Retry, tries int, fb Backoff) error {
 				time.Sleep(fb.Backoff())
 				continue
 			}
-
+			
 			return nil
 		}
 
