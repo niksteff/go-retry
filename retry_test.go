@@ -1,6 +1,7 @@
 package retry_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -36,7 +37,10 @@ func TestRetry(t *testing.T) {
 	}
 
 	for idx, d := range testData {
-		err := retry.Do(d.r, d.tries, d.b)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		err := retry.Do(ctx, d.r, d.tries, d.b)
 		if err != nil {
 			var rErr retry.RetryError
 			if !errors.As(err, &rErr) {
@@ -49,49 +53,37 @@ func TestRetry(t *testing.T) {
 func TestRetryCounter(t *testing.T) {
 	expectedRetries := 3
 
-	r := simulatePassingRetry(t, expectedRetries)
-
 	var madeRetries int
-	b := func() backoff.BackoffFunc {
-
-		return func() time.Duration {
+	f := func(t *testing.T, maxRetries int) retry.RetryableFunc {
+		return func() error {
+			t.Logf("retry %d", madeRetries+1)
 			madeRetries++
-			t.Logf("backoff %d", madeRetries)
-
-			if madeRetries < 3 {
-				return 100 * time.Millisecond
+			if madeRetries < maxRetries {
+				return ErrTest
 			}
 
-			return 0
+			return nil
+		}
+	}(t, expectedRetries)
+
+	b := func() backoff.BackoffFunc {
+		return func() time.Duration {
+			return 100 * time.Millisecond
 		}
 	}()
 
-	err := retry.Do(r, expectedRetries, b)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := retry.Do(ctx, f, 5, b)
 	if err != nil {
 		var rErr retry.RetryError
 		if !errors.As(err, &rErr) {
 			t.Errorf("expected error of type %T but got %T: %v", rErr, err, err)
 		}
-
-		return
 	}
 
-	if madeRetries != expectedRetries-1 {
-		t.Errorf("expected %d retries but got %d", expectedRetries-1, madeRetries)
-	}
-}
-
-func simulatePassingRetry(t *testing.T, maxRetries int) retry.RetryableFunc {
-	var retries int
-
-	return func() error {
-		retries++
-		t.Logf("retry %d", retries)
-
-		if retries < maxRetries {
-			return ErrTest
-		}
-
-		return nil
+	if madeRetries != expectedRetries {
+		t.Errorf("expected %d retries but got %d", expectedRetries, madeRetries)
 	}
 }

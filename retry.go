@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -27,22 +28,27 @@ func (f RetryableFunc) Try() error {
 	return f()
 }
 
-func Do(f Retry, tries int, fb Backoff) error {
+func Do(ctx context.Context, f Retry, tries int, fb Backoff) error {
 	for {
-		err := f.Try()
-		if err != nil {
-			// we tried, subtract one try
-			tries -= 1
-			if tries <= 0 {
-				// no tries left, return the last error
-				return RetryError{Err: err}
+		select {
+		case <-ctx.Done():
+			return context.Canceled
+		default:
+			err := f.Try()
+			if err != nil {
+				// we tried, subtract one try
+				tries--
+				if tries <= 0 {
+					// no tries left, return the last error
+					return RetryError{Err: err}
+				}
+
+				time.Sleep(fb.Backoff())
+				continue
 			}
 
-			d := fb.Backoff()
-			time.Sleep(d)
-			continue
+			return nil
 		}
 
-		return nil
 	}
 }
